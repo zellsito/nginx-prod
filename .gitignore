@@ -1,0 +1,5 @@
+# Cloudflare API token
+certbot/cf.ini
+
+# Let's Encrypt certificates and keys
+letsencrypt/
