@@ -133,6 +133,10 @@ curl -s -X GET "https://api.cloudflare.com/client/v4/user/tokens/verify" -H "Aut
 
 Expected response: `{"result":{"status":"active"},"success":true,...}`
 
+## Author
+
+Made by [zellsito](https://github.com/zellsito)
+
 ## License
 
 MIT
