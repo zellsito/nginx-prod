@@ -5,10 +5,35 @@ services:
     command: /bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl.conf:/etc/nginx/ssl.conf:ro
+      - ./letsencrypt:/etc/letsencrypt:ro
     ports:
       - "80:80"
       - "443:443"
     restart: always
+    depends_on:
+      certbot:
+        condition: service_healthy
+    networks:
+      - web_net
+
+  certbot:
+    image: certbot/dns-cloudflare
+    container_name: certbot
+    volumes:
+      - ./certbot/cf.ini:/etc/cloudflare/cf.ini:ro
+      - ./certbot/domains.conf:/etc/certbot/domains.conf:ro
+      - ./certbot/renew-loop.sh:/renew-loop.sh:ro
+      - ./certbot/healthcheck.sh:/healthcheck.sh:ro
+      - ./letsencrypt:/etc/letsencrypt
+    entrypoint: /bin/sh
+    command: /renew-loop.sh
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/bin/sh", "/healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
     networks:
       - web_net
 
