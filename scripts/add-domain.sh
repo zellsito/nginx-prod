@@ -60,20 +60,20 @@ echo "[nginx] Creado: $CONF_FILE"
 echo "[certbot] Reiniciando certbot..."
 docker compose -f "$PROJECT_DIR/docker-compose.yml" restart certbot
 
-# --- 4. Esperar a que el cert exista ---
+# --- 4. Esperar a que el cert exista (chequea dentro del container) ---
 echo "[certbot] Esperando certificado para $CERT_NAME..."
-CERT_PATH="$PROJECT_DIR/letsencrypt/live/$CERT_NAME/fullchain.pem"
+CERT_CONTAINER_PATH="/etc/letsencrypt/live/$CERT_NAME/fullchain.pem"
 TRIES=0
 MAX_TRIES=60
-while [ ! -f "$CERT_PATH" ]; do
+while ! docker exec certbot test -f "$CERT_CONTAINER_PATH" 2>/dev/null; do
   TRIES=$((TRIES + 1))
   if [ "$TRIES" -ge "$MAX_TRIES" ]; then
-    echo "ERROR: Timeout esperando certificado en $CERT_PATH"
+    echo "ERROR: Timeout esperando certificado en $CERT_CONTAINER_PATH"
     exit 1
   fi
   sleep 5
 done
-echo "[certbot] Certificado listo: $CERT_PATH"
+echo "[certbot] Certificado listo."
 
 # --- 5. Reload nginx ---
 echo "[nginx] Recargando nginx..."
