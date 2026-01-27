@@ -10,7 +10,7 @@ CONF_DIR="$PROJECT_DIR/nginx/conf.d"
 # --- Validar argumentos ---
 if [ $# -lt 2 ]; then
   echo "Uso: $0 <dominio> <backend>"
-  echo "Ejemplo: $0 luciano.salgado.ar lucho-portfolio:80"
+  echo "Ejemplo: $0 app.example.com my-backend:80"
   exit 1
 fi
 
@@ -20,10 +20,10 @@ BACKEND="$2"
 # --- Determinar root domain y cert name ---
 DOT_COUNT=$(echo "$DOMAIN" | tr -cd '.' | wc -c)
 if [ "$DOT_COUNT" -le 1 ]; then
-  # Root domain (ej: salgado.ar)
+  # Root domain (ej: example.com)
   ROOT_DOMAIN="$DOMAIN"
 else
-  # Subdomain (ej: luciano.salgado.ar → salgado.ar)
+  # Subdomain (ej: app.example.com → example.com)
   ROOT_DOMAIN=$(echo "$DOMAIN" | cut -d'.' -f2-)
 fi
 CERT_NAME="$ROOT_DOMAIN"

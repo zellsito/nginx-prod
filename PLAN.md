@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Certificado wildcard `*.salgado.ar` + `salgado.ar` emitido por Let's Encrypt usando el challenge DNS-01 con Cloudflare como proveedor DNS.
+Certificado wildcard vía Let's Encrypt usando el challenge DNS-01 con Cloudflare como proveedor DNS.
 
 - Un certificado por grupo de dominios definido en `domains.conf`.
 - Renovación automática cada 12 horas con reload de nginx.
@@ -53,12 +53,12 @@ nginx-prod/
 │   ├── ssl.conf                # Parámetros SSL compartidos
 │   └── conf.d/
 │       ├── default.conf        # Catch-all puerto 80
-│       └── luciano.salgado.ar.conf
+│       └── <domain>.conf       # Generados por add-domain.sh
 │
 └── scripts/
     ├── start.sh                # docker compose up -d
     ├── stop.sh                 # docker compose down
-    ├── restart.sh              # Reload nginx
+    ├── reload.sh               # Reload nginx
     ├── renew.sh                # Forzar renovación manual + reload
     ├── add-domain.sh           # Agregar dominio nuevo (todo-en-uno)
     ├── logs.sh                 # Ver logs de containers
@@ -86,10 +86,10 @@ El token necesita el permiso `Zone:DNS:Edit` en Cloudflare.
 Cada línea define un certificado. Los dominios separados por coma se incluyen como SANs en el mismo cert. Líneas vacías y comentarios (`#`) se ignoran.
 
 ```
-*.salgado.ar,salgado.ar
+*.example.com,example.com
 ```
 
-El nombre del certificado (directorio en `/etc/letsencrypt/live/`) se deriva del primer dominio quitando `*.` — en este caso: `salgado.ar`.
+El nombre del certificado (directorio en `/etc/letsencrypt/live/`) se deriva del primer dominio quitando `*.` — en este caso: `example.com`.
 
 ---
 
@@ -119,17 +119,6 @@ Entrypoint del contenedor certbot. Dos fases:
 ### `certbot/healthcheck.sh`
 
 Verifica que cada dominio en `domains.conf` tenga su certificado generado. Docker usa esto para `service_healthy`.
-
-```bash
-#!/bin/sh
-while IFS= read -r line; do
-  [ -z "$line" ] && continue
-  echo "$line" | grep -q '^#' && continue
-  domain=$(echo "$line" | cut -d',' -f1 | sed 's/\*\.//')
-  [ ! -f "/etc/letsencrypt/live/$domain/fullchain.pem" ] && exit 1
-done < /etc/certbot/domains.conf
-exit 0
-```
 
 Retries configurados: 30 intentos cada 10s = 5 minutos máximo de espera para que certbot genere los certs antes de que nginx arranque.
 
@@ -175,20 +164,16 @@ No hay bloque 443 en default — cada sitio maneja su propio server block HTTPS 
 
 ---
 
-### `nginx/conf.d/luciano.salgado.ar.conf`
+### `nginx/conf.d/<domain>.conf`
 
-Dos server blocks:
+Generados por `add-domain.sh` desde el template. Dos server blocks:
 
 | Puerto | Función |
 |---|---|
 | 80 | Redirect 301 a HTTPS |
-| 443 | SSL termination + proxy a `lucho-portfolio:80` |
+| 443 | SSL termination + proxy al backend |
 
-El bloque 443 usa el certificado wildcard:
-```
-ssl_certificate     /etc/letsencrypt/live/salgado.ar/fullchain.pem;
-ssl_certificate_key /etc/letsencrypt/live/salgado.ar/privkey.pem;
-```
+El bloque 443 usa el certificado wildcard correspondiente al root domain.
 
 ---
 
@@ -198,9 +183,9 @@ Template para generar configs nginx de nuevos sitios. Tiene tres placeholders:
 
 | Placeholder | Descripción | Ejemplo |
 |---|---|---|
-| `{{DOMAIN}}` | FQDN del sitio | `api.salgado.ar` |
-| `{{CERT_NAME}}` | Nombre del cert (directorio en letsencrypt/live/) | `salgado.ar` |
-| `{{BACKEND}}` | Host:puerto del backend | `api-backend:3000` |
+| `{{DOMAIN}}` | FQDN del sitio | `app.example.com` |
+| `{{CERT_NAME}}` | Nombre del cert (directorio en letsencrypt/live/) | `example.com` |
+| `{{BACKEND}}` | Host:puerto del backend | `my-backend:3000` |
 
 `add-domain.sh` hace el reemplazo con `sed`.
 
@@ -220,7 +205,7 @@ docker compose up -d
 docker compose down
 ```
 
-#### `scripts/restart.sh`
+#### `scripts/reload.sh`
 ```bash
 docker exec nginx nginx -s reload
 ```
@@ -246,7 +231,7 @@ docker compose ps
 #### `scripts/add-domain.sh <dominio> <backend>`
 Script todo-en-uno para agregar un nuevo dominio. Pasos:
 
-1. Determina el `CERT_NAME` (dominio raíz para subdominios de `salgado.ar`, o el dominio mismo).
+1. Determina el `CERT_NAME` (dominio raíz del FQDN).
 2. Si el wildcard ya cubre el dominio, no modifica `domains.conf`.
 3. Genera `nginx/conf.d/<dominio>.conf` desde el template.
 4. Reinicia certbot para que genere el cert si es necesario.
@@ -274,7 +259,7 @@ vim certbot/cf.ini
 ### Agregar un dominio nuevo
 
 ```bash
-./scripts/add-domain.sh api.salgado.ar api-backend:3000
+./scripts/add-domain.sh app.example.com my-backend:3000
 ```
 
 El script hace todo automáticamente: config nginx, cert (si es necesario), reload.
@@ -295,9 +280,9 @@ No requiere intervención. certbot renueva cada 12h, nginx recarga cada 6h.
 
 | Test | Comando | Resultado esperado |
 |---|---|---|
-| HTTP redirect | `curl -I http://luciano.salgado.ar` | `301` → `https://...` |
-| HTTPS proxy | `curl -I https://luciano.salgado.ar` | `200` del backend |
-| Cert válido | `openssl s_client -connect luciano.salgado.ar:443` | Cert `*.salgado.ar` |
+| HTTP redirect | `curl -I http://app.example.com` | `301` → `https://...` |
+| HTTPS proxy | `curl -I https://app.example.com` | `200` del backend |
+| Cert válido | `openssl s_client -connect app.example.com:443` | Cert wildcard válido |
 | Containers OK | `./scripts/status.sh` | nginx y certbot running/healthy |
 
 ---
