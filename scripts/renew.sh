@@ -4,12 +4,17 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
-echo "Reiniciando certbot (renueva certs si es necesario)..."
-docker compose -f "$PROJECT_DIR/docker-compose.yml" restart certbot
+echo "Deteniendo certbot..."
+docker compose -f "$PROJECT_DIR/docker-compose.yml" stop certbot
 
-echo "Esperando a que certbot termine..."
-sleep 5
-docker logs certbot --tail 5
+echo "Renovando certificados..."
+docker run --rm \
+  -v "$PROJECT_DIR/letsencrypt:/etc/letsencrypt" \
+  -v "$PROJECT_DIR/certbot/cf.ini:/etc/cloudflare/cf.ini:ro" \
+  certbot/dns-cloudflare renew
+
+echo "Reiniciando certbot..."
+docker compose -f "$PROJECT_DIR/docker-compose.yml" start certbot
 
 echo "Recargando nginx..."
 docker exec nginx nginx -s reload
