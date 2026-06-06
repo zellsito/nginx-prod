@@ -9,8 +9,9 @@ CONF_DIR="$PROJECT_DIR/nginx/conf.d"
 
 # --- Validar argumentos ---
 if [ $# -lt 2 ]; then
-  echo "Uso: $0 <dominio> <backend>"
+  echo "Uso: $0 <dominio> <backend> [dominio_raiz_opcional]"
   echo "Ejemplo: $0 app.example.com my-backend:80"
+  echo "Ejemplo con custom root: $0 cameras.com.ar cameras-landing:80 cameras.com.ar"
   exit 1
 fi
 
@@ -18,14 +19,39 @@ DOMAIN="$1"
 BACKEND="$2"
 
 # --- Determinar root domain y cert name ---
-DOT_COUNT=$(echo "$DOMAIN" | tr -cd '.' | wc -c)
-if [ "$DOT_COUNT" -le 1 ]; then
-  # Root domain (ej: example.com)
-  ROOT_DOMAIN="$DOMAIN"
+get_root_domain() {
+  local dom="$1"
+  dom="${dom%.}" # Eliminar punto final si existe
+  
+  local dots
+  dots=$(echo "$dom" | tr -cd '.' | wc -c)
+  if [ "$dots" -le 1 ]; then
+    echo "$dom"
+    return
+  fi
+  
+  # Si termina en ccTLD de dos niveles (ej: .com.ar, .co.uk, .com.br, .org.es)
+  if [[ "$dom" =~ \.([a-z0-9\-]{2,3})\.([a-z]{2})$ ]]; then
+    local suffix="${BASH_REMATCH[0]}"
+    local prefix="${dom%$suffix}"
+    local main="${prefix##*.}"
+    echo "${main}${suffix}"
+  else
+    # TLD estándar de un nivel (ej: .com, .org, .net, .io)
+    local suffix="${dom##*.}"
+    local prefix="${dom%.$suffix}"
+    local main="${prefix##*.}"
+    echo "${main}.${suffix}"
+  fi
+}
+
+if [ $# -ge 3 ]; then
+  ROOT_DOMAIN="$3"
+  echo "Usando root domain especificado: $ROOT_DOMAIN"
 else
-  # Subdomain (ej: app.example.com → example.com)
-  ROOT_DOMAIN=$(echo "$DOMAIN" | cut -d'.' -f2-)
+  ROOT_DOMAIN=$(get_root_domain "$DOMAIN")
 fi
+
 CERT_NAME="$ROOT_DOMAIN"
 WILDCARD_ENTRY="*.${ROOT_DOMAIN},${ROOT_DOMAIN}"
 

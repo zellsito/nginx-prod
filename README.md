@@ -41,13 +41,19 @@ chmod 600 certbot/cf.ini
 ## Adding a domain
 
 ```bash
-./scripts/add-domain.sh <domain> <backend>
+./scripts/add-domain.sh <domain> <backend> [optional_root_domain]
 ```
 
 Example:
 ```bash
 ./scripts/add-domain.sh app.example.com my-backend:80
-./scripts/add-domain.sh api.example.com api-service:3000
+./scripts/add-domain.sh cameras.com.ar cameras-landing:80
+```
+
+The script automatically detects the root domain, including support for double-level ccTLDs (like `.com.ar` or `.co.uk`).
+If you want to manually override the root domain (or if you have an unusual domain structure), you can pass the root domain as the third parameter:
+```bash
+./scripts/add-domain.sh subdomain.my-custom-domain.net my-backend:80 my-custom-domain.net
 ```
 
 The script automatically:
